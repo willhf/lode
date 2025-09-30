@@ -12,9 +12,9 @@ Lode is a tiny loader library that makes **querying related data** easy, fast, a
 ## Install
 
 ```bash
-go get github.com/you/lode@latest
+go get github.com/willhf/lode@latest
 # Optional GORM adapter:
-go get github.com/you/lodegorm@latest
+go get github.com/willhf/lode/lodegorm@latest
 ```
 
 ## Example
