@@ -1,9 +1,9 @@
 module github.com/willhf/lode/lodegorm
 
-go 1.24.5
+go 1.24
 
 require (
-	github.com/willhf/lode v0.0.0-00010101000000-000000000000
+	github.com/willhf/lode v0.1.1
 	gorm.io/gorm v1.31.0
 )
 
@@ -12,5 +12,3 @@ require (
 	github.com/jinzhu/now v1.1.5 // indirect
 	golang.org/x/text v0.20.0 // indirect
 )
-
-replace github.com/willhf/lode => ../
