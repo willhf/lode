@@ -1,6 +1,6 @@
 module github.com/willhf/lode/example
 
-go 1.24
+go 1.24.5
 
 require (
 	github.com/willhf/lode v0.1.1
