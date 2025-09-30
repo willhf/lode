@@ -8,7 +8,6 @@ Lode is a tiny loader library that makes **querying related data** easy, fast, a
 - **Ergonomic While Avoid N+1.** One query is peformed across all models in the batch, but the the API still feels comfortably per-model.
 - **ORM-agnostic core.** Zero deps; you own the SQL/ORM in `Fetch`, keeping things explicit and portable.
 - **GORM helpers.** The separate `lodegorm` module adds convenience for GORM.
-- **Opt-in locking.** Enable `lode.WithLocking()` only if multiple goroutines hit the same batch — no overhead otherwise.
 
 ## Install
 
