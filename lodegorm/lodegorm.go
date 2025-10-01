@@ -10,9 +10,9 @@ import (
 
 func RegisterCallback(engine *lode.Engine, db *gorm.DB) {
 	const cbName = "lodegorm:init"
-	db.Callback().Query().After("gorm:query").Register(cbName, func(tx *gorm.DB) {
-		engine.InitHandles(tx.Statement.Dest)
-	})
+	var initFunc = func(tx *gorm.DB) { engine.InitHandles(tx.Statement.Dest) }
+	db.Callback().Query().After("gorm:query").Register(cbName, initFunc)
+	db.Callback().Create().After("gorm:create").Register(cbName, initFunc)
 }
 
 // Fetch is a helper function to fetch models by their keys.

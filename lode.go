@@ -36,6 +36,13 @@ type Handle struct{ core *loaderState }
 func (h *Handle) lodeState() *loaderState     { return h.core }
 func (h *Handle) setLodeState(s *loaderState) { h.core = s }
 
+func (h *Handle) Reset() {
+	if h.core == nil {
+		return
+	}
+	h.core.resolverEntries.Clear()
+}
+
 type hasState interface {
 	lodeState() *loaderState
 	setLodeState(*loaderState)
@@ -44,7 +51,6 @@ type hasState interface {
 var _ hasState = (*Handle)(nil)
 
 type loaderState struct {
-	sync.Mutex
 	models          any
 	engine          *Engine
 	resolverEntries sync.Map
@@ -53,108 +59,119 @@ type loaderState struct {
 // InitHandles initializes the loader state for a slice of models.
 // ChatGPT prefers the name "Bind".  What do you think?
 func (e *Engine) InitHandles(models any) {
-	v := reflect.ValueOf(models)
-	if !v.IsValid() {
+	if models == nil {
 		return
 	}
-	// deref pointers to get to the slice
+	ptrSlice, ok := toPtrSlice(models)
+	if !ok || ptrSlice.Len() == 0 {
+		return
+	}
+	e.bindPtrSlice(ptrSlice)
+}
+
+// toPtrSlice returns a reflect.Value that is a slice of pointers (e.g. []*T),
+// built from one of:
+//   - a single *T that implements hasState  -> []*T{that}
+//   - a slice []*T                          -> as-is
+//   - a slice []T                           -> take addresses -> []*T
+func toPtrSlice(models any) (reflect.Value, bool) {
+	v := reflect.ValueOf(models)
+	if !v.IsValid() {
+		return reflect.Value{}, false
+	}
+
+	// Single pointer implementing hasState: make a 1-element []*T.
+	if v.Kind() == reflect.Ptr {
+		if _, ok := v.Interface().(hasState); ok {
+			if v.IsNil() {
+				return reflect.Value{}, false
+			}
+			s := reflect.MakeSlice(reflect.SliceOf(v.Type()), 1, 1)
+			s.Index(0).Set(v)
+			return s, true
+		}
+	}
+
+	// Unwrap pointers to get to a slice.
 	for v.Kind() == reflect.Ptr {
 		if v.IsNil() {
-			return
+			return reflect.Value{}, false
 		}
 		v = v.Elem()
 	}
-	if v.Kind() != reflect.Slice || v.Len() == 0 {
-		return
+	if v.Kind() != reflect.Slice {
+		return reflect.Value{}, false
+	}
+	if v.Len() == 0 {
+		return v, true
 	}
 
-	elemType := v.Type().Elem()
-	ptrElems := elemType.Kind() == reflect.Ptr
+	elem := v.Type().Elem()
+	if elem.Kind() == reflect.Ptr {
+		// Already []*T
+		return v, true
+	}
 
-	// Do we need to (re)bind this batch?
-	var (
-		first *loaderState
-		need  bool
-	)
+	// Convert []T -> []*T by taking addresses.
+	ptrType := reflect.PointerTo(elem)
+	out := reflect.MakeSlice(reflect.SliceOf(ptrType), v.Len(), v.Len())
 	for i := 0; i < v.Len(); i++ {
 		el := v.Index(i)
-
-		var x any
-		if ptrElems {
-			if el.IsNil() {
-				continue
-			}
-			x = el.Interface() // *T
-		} else {
-			if !el.CanAddr() {
-				continue
-			}
-			x = el.Addr().Interface() // &T
-		}
-
-		hl, ok := x.(hasState)
-		if !ok {
+		if !el.CanAddr() {
 			continue
 		}
-		st := hl.lodeState()
-		if st == nil {
-			need = true
-			break
-		}
-		if first == nil {
-			first = st
+		out.Index(i).Set(el.Addr())
+	}
+	return out, true
+}
+
+// bindPtrSlice expects a slice of pointers (e.g. []*T). It decides whether a
+// (re)bind is needed, batches, and sets the shared loaderState on each element.
+func (e *Engine) bindPtrSlice(ps reflect.Value) {
+	// Detect whether we need to bind (nil or mixed state).
+	var first *loaderState
+	need := false
+	for i := 0; i < ps.Len(); i++ {
+		el := ps.Index(i)
+		if el.Kind() != reflect.Ptr || el.IsNil() {
 			continue
 		}
-		if first != st {
-			need = true // mixed state: normalize to one
-			break
+		if hl, ok := el.Interface().(hasState); ok {
+			st := hl.lodeState()
+			if st == nil {
+				need = true
+				break
+			}
+			if first == nil {
+				first = st
+				continue
+			}
+			if first != st {
+				need = true
+				break
+			}
 		}
 	}
 	if !need {
 		return
 	}
 
-	// Bind in batches; store models as a slice of *T in all cases.
-	for _, br := range batchRanges(v.Len(), e.config.batchSize) {
-		sub := v.Slice(br.StartInclusive, br.EndExclusive)
+	// Bind in batches; store models as []*T so Resolve's type assertion works.
+	for _, br := range batchRanges(ps.Len(), e.config.batchSize) {
+		sub := ps.Slice(br.StartInclusive, br.EndExclusive)
 		state := &loaderState{
-			models: nil, // set below
+			models: sub.Interface(), // always []*T
 			engine: e,
 		}
-
-		if ptrElems {
-			// models already []*T
-			state.models = sub.Interface()
-			for i := 0; i < sub.Len(); i++ {
-				el := sub.Index(i)
-				if el.IsNil() {
-					continue
-				}
-				if hl, ok := el.Interface().(hasState); ok {
-					hl.setLodeState(state)
-				}
-			}
-			continue
-		}
-
-		// values []T → build []*T pointing at the same elements
-		ptrType := reflect.PointerTo(elemType)   // *T
-		ptrSliceType := reflect.SliceOf(ptrType) // []*T
-		ptrSlice := reflect.MakeSlice(ptrSliceType, sub.Len(), sub.Len())
-
 		for i := 0; i < sub.Len(); i++ {
 			el := sub.Index(i)
-			if !el.CanAddr() {
+			if el.Kind() != reflect.Ptr || el.IsNil() {
 				continue
 			}
-			addr := el.Addr() // *T
-			ptrSlice.Index(i).Set(addr)
-
-			if hl, ok := addr.Interface().(hasState); ok {
+			if hl, ok := el.Interface().(hasState); ok {
 				hl.setLodeState(state)
 			}
 		}
-		state.models = ptrSlice.Interface() // always []*T for Resolve
 	}
 }
 
