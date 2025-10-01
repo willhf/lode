@@ -3,7 +3,7 @@ module github.com/willhf/lode/lodegorm
 go 1.24
 
 require (
-	github.com/willhf/lode v0.1.1
+	github.com/willhf/lode v0.1.2
 	gorm.io/gorm v1.31.0
 )
 
