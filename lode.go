@@ -69,11 +69,6 @@ func (e *Engine) InitHandles(models any) {
 	e.bindPtrSlice(ptrSlice)
 }
 
-// toPtrSlice returns a reflect.Value that is a slice of pointers (e.g. []*T),
-// built from one of:
-//   - a single *T that implements hasState  -> []*T{that}
-//   - a slice []*T                          -> as-is
-//   - a slice []T                           -> take addresses -> []*T
 func toPtrSlice(models any) (reflect.Value, bool) {
 	v := reflect.ValueOf(models)
 	if !v.IsValid() {
@@ -86,7 +81,7 @@ func toPtrSlice(models any) (reflect.Value, bool) {
 			if v.IsNil() {
 				return reflect.Value{}, false
 			}
-			s := reflect.MakeSlice(reflect.SliceOf(v.Type()), 1, 1)
+			s := reflect.MakeSlice(reflect.SliceOf(v.Type()), 1, 1) // []*T
 			s.Index(0).Set(v)
 			return s, true
 		}
@@ -102,25 +97,37 @@ func toPtrSlice(models any) (reflect.Value, bool) {
 	if v.Kind() != reflect.Slice {
 		return reflect.Value{}, false
 	}
-	if v.Len() == 0 {
-		return v, true
-	}
 
 	elem := v.Type().Elem()
+
+	// Case A: slice element is already a pointer (e.g., Authors = []*Author).
+	// Normalize named slice types (Authors) to the unnamed [] *Author.
 	if elem.Kind() == reflect.Ptr {
-		// Already []*T
-		return v, true
+		want := reflect.SliceOf(elem) // [] *Author (unnamed)
+		if v.Type() == want {
+			return v, true // already unnamed [] *Author
+		}
+		// Convert/copy into unnamed [] *Author
+		out := reflect.MakeSlice(want, v.Len(), v.Len())
+		for i := 0; i < v.Len(); i++ {
+			vi := v.Index(i)
+			// vi should already be *Author (or assignable) — Convert for safety.
+			if vi.IsValid() && !vi.IsZero() {
+				out.Index(i).Set(vi.Convert(elem))
+			}
+		}
+		return out, true
 	}
 
-	// Convert []T -> []*T by taking addresses.
-	ptrType := reflect.PointerTo(elem)
-	out := reflect.MakeSlice(reflect.SliceOf(ptrType), v.Len(), v.Len())
+	// Case B: []T -> []*T (also ensure unnamed result type)
+	ptrType := reflect.PointerTo(elem) // *T
+	want := reflect.SliceOf(ptrType)   // []*T (unnamed)
+	out := reflect.MakeSlice(want, v.Len(), v.Len())
 	for i := 0; i < v.Len(); i++ {
-		el := v.Index(i)
-		if !el.CanAddr() {
-			continue
+		el := v.Index(i) // T
+		if el.CanAddr() {
+			out.Index(i).Set(el.Addr()) // *T
 		}
-		out.Index(i).Set(el.Addr())
 	}
 	return out, true
 }

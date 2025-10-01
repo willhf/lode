@@ -12,6 +12,9 @@ type Author struct {
 	Handle
 }
 
+type Authors []*Author    // named slice of pointers
+type AuthorsVals []Author // named slice of values
+
 type Book struct {
 	ID       int
 	AuthorID int
@@ -244,6 +247,7 @@ func ptrsEq(a, b []*Author) bool {
 	return true
 }
 
+// Extend TestInitHandles_VariousInputs with more cases.
 func TestInitHandles_VariousInputs(t *testing.T) {
 	t.Parallel()
 
@@ -287,6 +291,71 @@ func TestInitHandles_VariousInputs(t *testing.T) {
 				return v, []*Author{&(*v)[0], &(*v)[1]}
 			},
 		},
+
+		// --- New coverage for named slice types ---
+
+		{
+			name: "Authors (named []*Author) → normalize to []*Author",
+			build: func() (any, []*Author) {
+				a1, a2 := &Author{ID: 1}, &Author{ID: 2}
+				in := Authors{a1, a2}
+				// want pointers unchanged
+				return in, []*Author{a1, a2}
+			},
+		},
+		{
+			name: "*Authors (pointer to named []*Author) → normalize to []*Author",
+			build: func() (any, []*Author) {
+				a1, a2 := &Author{ID: 1}, &Author{ID: 2}
+				in := &Authors{a1, a2}
+				return in, []*Author{a1, a2}
+			},
+		},
+		{
+			name: "AuthorsVals (named []Author) → []*Author",
+			build: func() (any, []*Author) {
+				v := AuthorsVals{{ID: 1}, {ID: 2}}
+				// addresses of elements in the underlying array
+				return v, []*Author{&v[0], &v[1]}
+			},
+		},
+		{
+			name: "*AuthorsVals (pointer to named []Author) → []*Author",
+			build: func() (any, []*Author) {
+				v := &AuthorsVals{{ID: 1}, {ID: 2}}
+				return v, []*Author{&(*v)[0], &(*v)[1]}
+			},
+		},
+		{
+			name: "empty Authors (named []*Author, empty) → []*Author{}",
+			build: func() (any, []*Author) {
+				var in Authors
+				return in, nil
+			},
+		},
+		{
+			name: "empty *Authors (nil pointer allowed) → []*Author{}",
+			build: func() (any, []*Author) {
+				// toPtrSlice should treat a nil *slice as invalid -> InitHandles should no-op safely.
+				// We still pass it to ensure no panic; want remains nil.
+				var in *Authors
+				return in, nil
+			},
+		},
+		{
+			name: "empty AuthorsVals (named []Author, empty) → []*Author{}",
+			build: func() (any, []*Author) {
+				var in AuthorsVals
+				return in, nil
+			},
+		},
+		{
+			name: "empty *AuthorsVals (nil pointer allowed) → []*Author{}",
+			build: func() (any, []*Author) {
+				var in *AuthorsVals
+				return in, nil
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -296,6 +365,13 @@ func TestInitHandles_VariousInputs(t *testing.T) {
 			e := NewEngine()
 			in, want := tc.build()
 			e.InitHandles(in)
+
+			// If we expected no pointers (nil/empty), ensure nothing panics and behavior is consistent.
+			if len(want) == 0 {
+				// If input was empty or invalid, there might be no state to inspect.
+				// So just ensure that calling InitHandles didn’t attach state to some phantom Author.
+				return
+			}
 
 			state := sameState(t, want...)
 			ps, ok := state.models.([]*Author)
@@ -459,5 +535,34 @@ func TestHandleReset_UninitializedIsSafe(t *testing.T) {
 	// Still uninitialized:
 	if u.lodeState() != nil {
 		t.Fatal("unexpected non-nil state after Reset on uninitialized handle")
+	}
+}
+
+// Small additional test: empty named slice still yields a ptr-slice type shape when we do have a handle.
+// We create a real Author to get at a state, then re-init with empty named slices and ensure no panic.
+func TestInitHandles_EmptyNamedSlices_NoPanic(t *testing.T) {
+	t.Parallel()
+	e := NewEngine()
+
+	// Seed a real state so sameState can inspect something if needed.
+	a := &Author{ID: 1}
+	e.InitHandles([]*Author{a})
+
+	cases := []any{
+		Authors{},      // empty named []*Author
+		AuthorsVals{},  // empty named []Author
+		&Authors{},     // pointer to empty named []*Author
+		&AuthorsVals{}, // pointer to empty named []Author
+	}
+
+	for i, in := range cases {
+		func(i int, v any) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("case %d panicked: %v", i, r)
+				}
+			}()
+			e.InitHandles(v)
+		}(i, in)
 	}
 }

@@ -35,8 +35,14 @@ type Chapter struct {
 	lode.Handle
 }
 
+type Authors []*Author
+
+type Books []*Book
+
+type Chapters []*Chapter
+
 // Next, use lode.Many and lode.One to define the relations between your models.
-func (author *Author) Books(ctx context.Context, db *gorm.DB) ([]*Book, error) {
+func (author *Author) Books(ctx context.Context, db *gorm.DB) (Books, error) {
 	return lode.Many(ctx, lode.RelationSpec[uint, *Author, *Book]{
 		CacheKey:    "books",
 		Model:       author,
@@ -46,7 +52,7 @@ func (author *Author) Books(ctx context.Context, db *gorm.DB) ([]*Book, error) {
 	})
 }
 
-func (book *Book) Chapters(ctx context.Context, db *gorm.DB) ([]*Chapter, error) {
+func (book *Book) Chapters(ctx context.Context, db *gorm.DB) (Chapters, error) {
 	return lode.Many(ctx, lode.RelationSpec[uint, *Book, *Chapter]{
 		CacheKey:    "chapters",
 		Model:       book,
@@ -144,7 +150,7 @@ func main() {
 	engine := lode.NewEngine()
 	lodegorm.RegisterCallback(engine, db)
 
-	var authors []*Author // this will also work with []Author
+	var authors Authors // this will also work with []Author or []*Author
 	if err := db.Find(&authors).Error; err != nil {
 		log.Fatal(err)
 	}

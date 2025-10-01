@@ -61,7 +61,7 @@ func TestFirst(t *testing.T) {
 	}
 }
 
-func TestFind(t *testing.T) {
+func TestFind_AuthorPointer(t *testing.T) {
 	ctx := context.Background()
 	db, _ := seededSetup(t)
 
@@ -76,6 +76,33 @@ func TestFind(t *testing.T) {
 
 	var knownAuthor = findInSlice(authors, func(a *Author) bool { return a.Name == knownAuthorName })
 	if knownAuthor == nil {
+		t.Fatal("knownAuthor not found")
+	}
+
+	books, err := knownAuthor.Books(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(books) != 2 {
+		t.Fatal(len(books))
+	}
+}
+
+func TestFind_AuthorStruct(t *testing.T) {
+	ctx := context.Background()
+	db, _ := seededSetup(t)
+
+	var authors []Author
+	if err := db.Find(&authors).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	if len(authors) != 5 {
+		t.Fatal(len(authors))
+	}
+
+	var knownAuthor = findInSlice(authors, func(a Author) bool { return a.Name == knownAuthorName })
+	if knownAuthor.Name != knownAuthorName {
 		t.Fatal("knownAuthor not found")
 	}
 
