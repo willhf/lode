@@ -2,8 +2,8 @@ github.com/jinzhu/inflection v1.0.0 h1:K317FqzuhWc8YvSVlFMCCUb36O/S9MCKRDI7QkRKD
 github.com/jinzhu/inflection v1.0.0/go.mod h1:h+uFLlag+Qp1Va5pdKtLDYj+kHp5pxUVkryuEj+Srlc=
 github.com/jinzhu/now v1.1.5 h1:/o9tlHleP7gOFmsnYNz3RGnqzefHA47wQpKrrdTIwXQ=
 github.com/jinzhu/now v1.1.5/go.mod h1:d3SSVoowX0Lcu0IBviAWJpolVfI5UJVZZ7cO71lE/z8=
-github.com/willhf/lode v0.1.2 h1:ZfwjY1lf0SDChDGIm5gO1IiQApT5WdFwSqH5Kf7vngA=
-github.com/willhf/lode v0.1.2/go.mod h1:v1z5Y+3TdrND7WticNMlA//fsqGQMlH/Lx8/Yyti9/k=
+github.com/willhf/lode v0.1.3 h1:vTpJrWqqHSvmk97H2GLKQD/cgWYGFTig1jU6Ke95Y20=
+github.com/willhf/lode v0.1.3/go.mod h1:v1z5Y+3TdrND7WticNMlA//fsqGQMlH/Lx8/Yyti9/k=
 golang.org/x/text v0.20.0 h1:gK/Kv2otX8gz+wn7Rmb3vT96ZwuoxnQlY+HlJVj7Qug=
 golang.org/x/text v0.20.0/go.mod h1:D4IsuqiFMhST5bX19pQ9ikHC2GsaKyk/oF+pn3ducp4=
 gorm.io/gorm v1.31.0 h1:0VlycGreVhK7RF/Bwt51Fk8v0xLiiiFdbGDPIZQ7mJY=
