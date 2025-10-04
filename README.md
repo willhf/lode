@@ -64,9 +64,8 @@ func (a *Author) Books(ctx context.Context, db *gorm.DB) ([]*Book, error) {
 }
 ```
 
-**Tip:** With GORM you can replace `Fetch` with
-[lodegorm.Fetch](https://pkg.go.dev/github.com/willhf/lode/lodegorm#Fetch) to
-avoid boilerplate. You can also supply your own `Fetch` to add logging, metrics,
+If you are using GORM, you can avoid writing a function for `Fetch` by using
+[lodegorm.Fetch](https://pkg.go.dev/github.com/willhf/lode/lodegorm#Fetch) instead. You can also supply your own `Fetch` to add logging, metrics,
 or custom queries.
 
 ### 3. Initialize handles
@@ -83,11 +82,14 @@ var authors []*Author = getAuthors()
 engine.InitHandles(authors)
 ```
 
-**Best practices:**
-- Reuse a single [Engine](https://pkg.go.dev/github.com/willhf/lode#Engine) across your project.
-- Always call [Engine.InitHandles](https://pkg.go.dev/github.com/willhf/lode#Engine.InitHandles) on slices of models that embed [Handle](https://pkg.go.dev/github.com/willhf/lode#Handle).
-- It is safe to call [Engine.InitHandles](https://pkg.go.dev/github.com/willhf/lode#Engine.InitHandles) on a single model.
-- Avoid sprinkling [Engine.InitHandles](https://pkg.go.dev/github.com/willhf/lode#Engine.InitHandles) calls everywhere — set up hooks to do it
+- [Engine](https://pkg.go.dev/github.com/willhf/lode#Engine) exists to avoid
+configuring lode behavior through global variables.  You are encouraged to
+ instantiate a single instance and reuse it across your project.
+- It is safe to call `InitHandles` on a single model.  This is necessary if you
+  have fetched a single model.  If you have fetched a slice of models though,
+  you should call `InitHandles` on the slice of models because that allows
+  lode to batch queries.
+- Avoid sprinkling `InitHandles` calls everywhere — set up hooks to do it
   automatically.
 - With GORM, use [lodegorm.RegisterCallback](https://pkg.go.dev/github.com/willhf/lode/lodegorm#RegisterCallback) to initialize handles after queries:
 
@@ -136,3 +138,28 @@ for _, author := range authors {
 }
 ```
 
+## Motivation
+
+* I'm not a fan of GORM’s [preloading](https://gorm.io/docs/preload.html)
+  functionality. functionality. When a model containing preload fields is passed
+  as a parameter to a function, it’s unclear whether those fields have actually
+  been loaded — their presence isn’t statically checked. To verify that they are,
+  you must inspect all function call sites to ensure the corresponding GORM
+  queries include the correct preloads.
+
+* Additionally, if a method or function for a model requires related data and that data
+  must be passed in as parameters, encapsulation is lost. Lazily loading relations as needed
+  allows the caller to remain unaware of such details. However, the naive approach of
+  querying relations on demand within helper functions often leads to N+1 queries.
+  The strength of this library is that it avoids N+1 queries while still allowing
+  per-model methods and functions to be called naturally.
+
+* While eagerly loading all required relations (rather than doing so lazily)
+  can enable query optimizations — since multiple relations can be fetched together —
+  I believe this advantage is outweighed by the loss of encapsulation and
+  the added complexity of managing “populated” models.
+
+* The [ent](https://entgo.io/) library is excellent — its static checking eliminates the common GORM pitfall of discovering invalid queries only at runtime. I’ve used it with delight in the past. Nonetheless, I believe it has three main disadvantages:
+  - Code generation adds an extra step that slows down builds, and the large volume of generated code can degrade editor and tooling performance.
+  - Real-world projects often require raw SQL, and having to choose between fully static queries and untyped raw SQL can be frustrating.
+  - Most importantly, Ent’s eager loading is less ergonomic than lazy loading, as it reintroduces the “is my relation loaded?” problem when using helper functions and methods — the same issue discussed in the preload section above.

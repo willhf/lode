@@ -73,7 +73,8 @@ func (book *Book) Author(ctx context.Context, db *gorm.DB) (*Author, error) {
 }
 
 // You can create other methods that use the lode methods!  This is nice because
-// the caller can be ignorant of the relations required to compute the outcome.
+// it facilitates encapsulation - the caller can be ignorant of the relations
+// required to compute the outcome.
 func (author *Author) NumChapters(ctx context.Context, db *gorm.DB) (int, error) {
 	books, err := author.Books(ctx, db)
 	if err != nil {
@@ -90,6 +91,10 @@ func (author *Author) NumChapters(ctx context.Context, db *gorm.DB) (int, error)
 	return total, nil
 }
 
+// Sometimes the lode.One and lode.Many methods are not what is needed.  You can
+// use Resolve to build a custom query.  Here, we build a query that counts the
+// number of chapters for each author directly without loading the books and
+// chapters.
 func (author *Author) NumChaptersUsingQuery(ctx context.Context, db *gorm.DB) (int, error) {
 	return lode.Resolve(ctx, lode.ResolveSpec[*Author, int]{
 		CacheKey: "num_chapters",
@@ -158,6 +163,8 @@ func main() {
 	for _, author := range authors {
 		fmt.Println(author.Name)
 
+		// Even though this looks like a N+1 query within a for loop, only a
+		// single query is made for all books!
 		books, err := author.Books(ctx, db)
 		if err != nil {
 			log.Fatal(err)
