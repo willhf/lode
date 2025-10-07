@@ -566,3 +566,101 @@ func TestInitHandles_EmptyNamedSlices_NoPanic(t *testing.T) {
 		}(i, in)
 	}
 }
+
+func TestMany_NilModel(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	var nilAuthor *Author
+	fetchCalled := false
+
+	spec := RelationSpec[int, *Author, *Book]{
+		CacheKey: "booksByAuthor",
+		Model:    nilAuthor,
+		ModelKey: func(a *Author) (int, bool) {
+			if a == nil {
+				return 0, false
+			}
+			return a.ID, true
+		},
+		RelationKey: func(b *Book) int { return b.AuthorID },
+		Fetch: func(context.Context, []int) ([]*Book, error) {
+			fetchCalled = true
+			return []*Book{{AuthorID: 1, Title: "should not be fetched"}}, nil
+		},
+	}
+
+	got, err := Many(ctx, spec)
+	if err != nil {
+		t.Fatalf("Many(nil model) error = %v; want nil", err)
+	}
+	if got != nil {
+		t.Fatalf("Many(nil model) = %#v; want nil slice", got)
+	}
+	if fetchCalled {
+		t.Fatalf("Many(nil model) called Fetch; want not called")
+	}
+}
+
+func TestOne_NilModel(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	var nilAuthor *Author
+	fetchCalled := false
+
+	spec := RelationSpec[int, *Author, *Book]{
+		CacheKey: "booksByAuthor",
+		Model:    nilAuthor,
+		ModelKey: func(a *Author) (int, bool) {
+			if a == nil {
+				return 0, false
+			}
+			return a.ID, true
+		},
+		RelationKey: func(b *Book) int { return b.AuthorID },
+		Fetch: func(context.Context, []int) ([]*Book, error) {
+			fetchCalled = true
+			return []*Book{{AuthorID: 1, Title: "should not be fetched"}}, nil
+		},
+	}
+
+	got, err := One(ctx, spec)
+	if err != nil {
+		t.Fatalf("One(nil model) error = %v; want nil", err)
+	}
+	if got != nil { // zero value for *Book is nil
+		t.Fatalf("One(nil model) = %#v; want nil (*Book zero value)", got)
+	}
+	if fetchCalled {
+		t.Fatalf("One(nil model) called Fetch; want not called")
+	}
+}
+
+func TestResolve_NilModel(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	var nilAuthor *Author
+	buildCalled := false
+
+	spec := ResolveSpec[*Author, int]{
+		CacheKey: "answerForAuthor",
+		Model:    nilAuthor,
+		Build: func(context.Context, []*Author) (ResolverFunc[*Author, int], error) {
+			buildCalled = true
+			return func(*Author) int { return 42 }, nil
+		},
+	}
+
+	got, err := Resolve(ctx, spec)
+	if err != nil {
+		t.Fatalf("Resolve(nil model) error = %v; want nil", err)
+	}
+	if got != 0 { // zero value for int is 0
+		t.Fatalf("Resolve(nil model) = %v; want 0 (zero Result)", got)
+	}
+	if buildCalled {
+		t.Fatalf("Resolve(nil model) called Build; want not called")
+	}
+}

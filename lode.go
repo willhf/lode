@@ -223,6 +223,11 @@ func applyResolver[Model any, Result any](h *resolverHolder, cacheKey string, mo
 
 func Resolve[Model hasState, Result any](ctx context.Context, spec ResolveSpec[Model, Result]) (Result, error) {
 	var emptyResult Result
+	if isNil(spec.Model) {
+		// question: should we return an error here?
+		return emptyResult, nil
+	}
+
 	loader := spec.Model.lodeState()
 	if loader == nil {
 		return emptyResult, errNoLoader
@@ -261,7 +266,15 @@ type RelationSpec[JoinKey comparable, Model hasState, Relation any] struct {
 	Fetch       func(context.Context, []JoinKey) ([]Relation, error)
 }
 
+func isNil[T any](v T) bool {
+	rv := reflect.ValueOf(any(v))
+	return !rv.IsValid() || (rv.Kind() == reflect.Ptr && rv.IsNil())
+}
+
 func Many[JoinKey comparable, Model hasState, Relation any](ctx context.Context, args RelationSpec[JoinKey, Model, Relation]) ([]Relation, error) {
+	if isNil(args.Model) {
+		return nil, nil
+	}
 	_, ok := args.ModelKey(args.Model)
 	if !ok {
 		return nil, nil
