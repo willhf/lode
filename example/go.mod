@@ -3,8 +3,8 @@ module github.com/willhf/lode/example
 go 1.24.5
 
 require (
-	github.com/willhf/lode v0.1.2
-	github.com/willhf/lode/lodegorm v0.1.3
+	github.com/willhf/lode v0.1.5
+	github.com/willhf/lode/lodegorm v0.1.5
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.0
 )
