@@ -263,6 +263,13 @@ func TestInitHandles_VariousInputs(t *testing.T) {
 			},
 		},
 		{
+			name: "single **T",
+			build: func() (any, []*Author) {
+				a := &Author{ID: 1}
+				return &a, []*Author{a}
+			},
+		},
+		{
 			name: "[]*T",
 			build: func() (any, []*Author) {
 				a1, a2 := &Author{ID: 1}, &Author{ID: 2}

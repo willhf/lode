@@ -75,25 +75,19 @@ func toPtrSlice(models any) (reflect.Value, bool) {
 		return reflect.Value{}, false
 	}
 
-	// Single pointer implementing hasState: make a 1-element []*T.
-	if v.Kind() == reflect.Ptr {
-		if _, ok := v.Interface().(hasState); ok {
-			if v.IsNil() {
-				return reflect.Value{}, false
-			}
-			s := reflect.MakeSlice(reflect.SliceOf(v.Type()), 1, 1) // []*T
-			s.Index(0).Set(v)
-			return s, true
-		}
-	}
-
 	// Unwrap pointers to get to a slice.
 	for v.Kind() == reflect.Ptr {
 		if v.IsNil() {
 			return reflect.Value{}, false
 		}
+		if _, ok := v.Interface().(hasState); ok {
+			s := reflect.MakeSlice(reflect.SliceOf(v.Type()), 1, 1) // []*T
+			s.Index(0).Set(v)
+			return s, true
+		}
 		v = v.Elem()
 	}
+
 	if v.Kind() != reflect.Slice {
 		return reflect.Value{}, false
 	}
